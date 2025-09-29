@@ -1,0 +1,56 @@
+<!-- profile.html -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Quiz — Perfil</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .items-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .item-card{padding:10px;border-radius:10px;background:rgba(255,255,255,0.03);min-width:160px;cursor:pointer;border:1px solid rgba(255,255,255,0.03)}
+    .item-emoji{font-size:20px;margin-right:8px}
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="brand"><h1>Perfil</h1><div class="small muted">Seu progresso e itens</div></div>
+    <nav class="header-actions">
+      <a class="btn small-btn" href="index.html">Voltar</a>
+      <div id="topPoints" class="top-points">
+        <div class="small muted">Pontos</div>
+        <div id="topPointsValue" style="font-weight:800; font-size:18px">0</div>
+      </div>
+    </nav>
+  </header>
+
+  <main class="app card">
+    <section>
+      <div class="profile-quick">
+        <div>
+          <div class="small muted">Usuário</div>
+          <div id="profileName" style="font-weight:700">—</div>
+          <div class="small muted">Pontos: <span id="profilePoints">0</span> · Nível: <span id="profileLevel">1</span></div>
+        </div>
+        <div class="profile-actions">
+          <button class="btn" id="btnLogoutSmall">Sair</button>
+        </div>
+      </div>
+
+      <hr>
+
+      <h4>Itens Possuídos</h4>
+      <div id="ownedItems" class="items-grid"></div>
+
+      <div id="itemDesc" class="small muted" style="margin-top:12px">Clique em um item para ver sua utilidade.</div>
+    </section>
+  </main>
+<audio id="bgMusic" autoplay loop playsinline>
+  <source src="https://www.bensound.com/bensound-music/bensound-creativeminds.mp3" type="audio/mp3">
+</audio>
+
+  <footer class="footer"><div class="small muted">Gerencie seus itens aqui.</div></footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

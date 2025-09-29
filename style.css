@@ -1,0 +1,237 @@
+/* style.css — Tema refinado, harmônico e responsivo
+   Notas: otimizado para os HTMLs multi-página que você pediu.
+*/
+
+/* ---------------------------
+   Variáveis de tema
+   --------------------------- */
+:root{
+  --bg-900: #071022;        /* fundo escuro profundo */
+  --bg-800: #0c1b2b;
+  --panel: rgba(255,255,255,0.04);
+  --glass: rgba(255,255,255,0.03);
+  --muted: #9fb0c8;
+  --text-100: #e9f3fb;
+  --text-900: #061426;
+  --accent: #3dd5e3;        /* ciano suave */
+  --accent-2: #6d8cff;      /* azul-violeta */
+  --positive: #34d399;      /* verde */
+  --danger: #ff6b6b;        /* vermelho claro */
+  --card-radius: 14px;
+  --shadow-1: 0 10px 30px rgba(2,8,20,0.6);
+  --glass-border: rgba(255,255,255,0.04);
+  --control-h: 44px;
+  --max-width: 1080px;
+}
+
+/* ---------------------------
+   Reset & base
+   --------------------------- */
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif}
+body{
+  background: linear-gradient(180deg,var(--bg-900) 0%, var(--bg-800) 100%);
+  color:var(--text-100);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  line-height:1.4;
+  padding:18px;
+}
+
+/* ---------------------------
+   Layout container
+   --------------------------- */
+.app{max-width:var(--max-width);margin:18px auto}
+.header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:16px;
+  padding:10px 12px;
+  border-radius:12px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+  border:1px solid rgba(255,255,255,0.02);
+}
+.brand h1{margin:0;font-size:18px;letter-spacing:0.2px}
+.brand .small{font-size:13px;color:var(--muted);margin-top:4px}
+
+/* header actions / nav */
+.header-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.header-actions a,
+.header-actions button{
+  text-decoration:none;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+}
+
+/* highlighted points pill (top) */
+.top-points{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  padding:6px 12px;
+  border-radius:999px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.03);
+  min-width:86px;
+}
+.top-points .small{font-size:11px;color:var(--muted)}
+#topPointsValue{color:var(--text-100); font-weight:800; font-size:16px}
+
+/* Buttons */
+button.btn, a.btn{
+  background:transparent;
+  border:1px solid var(--glass-border);
+  color:var(--accent);
+  padding:8px 12px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:700;
+  min-height:36px;
+  transition:transform .08s ease, box-shadow .08s ease, background .12s;
+}
+button.btn:hover, a.btn:hover{ transform:translateY(-2px); box-shadow:0 8px 20px rgba(2,8,20,0.35) }
+button.btn.primary, a.btn.primary{
+  background: linear-gradient(90deg,var(--accent),var(--accent-2));
+  color: var(--text-900);
+  border: none;
+  box-shadow:0 10px 30px rgba(61,213,227,0.08);
+}
+.btn.wide{width:100%}
+.small-btn{padding:6px 8px;font-size:13px;border-radius:8px}
+
+/* ---------------------------
+   Cards & panels
+   --------------------------- */
+.card{
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius:var(--card-radius);
+  padding:16px;
+  box-shadow:var(--shadow-1);
+  border:1px solid var(--glass-border);
+}
+.center-card{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:26px}
+
+/* grid layout for pages */
+.main, .app.main{display:grid;grid-template-columns:1fr 360px;gap:18px}
+@media (max-width:980px){
+  .main, .app.main{grid-template-columns:1fr}
+  .header{flex-direction:column;align-items:flex-start;gap:10px}
+}
+
+/* ---------------------------
+   Home / Landing
+   --------------------------- */
+.home-hero{
+  display:flex;flex-direction:column;gap:12px;align-items:flex-start;
+}
+.home-hero h2{font-size:22px;margin:0}
+.home-hero p{color:var(--muted);margin:0}
+
+/* ---------------------------
+   Phase list / shop / profile
+   --------------------------- */
+.phase-list.compact{display:flex;flex-wrap:wrap;gap:10px}
+.phase{
+  padding:12px 14px;border-radius:12px;background:rgba(255,255,255,0.02);cursor:pointer;
+  border:1px solid rgba(255,255,255,0.03);
+  min-width:180px;
+}
+.phase.locked{opacity:0.5;filter:grayscale(30%)}
+
+/* shop item row */
+#shopContainer .phase{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px}
+
+/* ---------------------------
+   Quiz card
+   --------------------------- */
+.question-card{
+  margin-top:12px;padding:18px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));border:1px solid rgba(255,255,255,0.02)
+}
+.question{font-size:20px;margin-bottom:12px;font-weight:800;color:var(--text-100);line-height:1.26}
+.answers{display:flex;flex-direction:column;gap:12px}
+
+/* Answer buttons */
+.ans{
+  padding:14px 16px;border-radius:12px;color:var(--text-900);font-weight:800;cursor:pointer;border:2px solid rgba(255,255,255,0.06);
+  transition:transform .12s, box-shadow .12s, opacity .12s; box-shadow:0 8px 20px rgba(2,8,20,0.45);
+  display:flex;align-items:center;justify-content:space-between; user-select:none;
+}
+
+/* default palette by position for visual variety (kept subtle) */
+.answers .ans:nth-child(1){ background: linear-gradient(90deg,#bff7ef,#9feaf0); color:var(--text-900) }
+.answers .ans:nth-child(2){ background: linear-gradient(90deg,#fff1d6,#ffd9a8); color:var(--text-900) }
+.answers .ans:nth-child(3){ background: linear-gradient(90deg,#d9efff,#b0daff); color:var(--text-900) }
+.answers .ans:nth-child(4){ background: linear-gradient(90deg,#ffdfe6,#ffbfcf); color:var(--text-900) }
+
+.ans:hover{ transform:translateY(-6px); box-shadow:0 18px 40px rgba(2,8,20,0.55) }
+.ans:focus{ outline:3px solid rgba(6,182,212,0.12); outline-offset:3px }
+
+/* correct / wrong states (high contrast outlines) */
+.ans.correct{
+  border:3px solid rgba(52,211,153,0.95)!important;
+  box-shadow:0 14px 40px rgba(52,211,153,0.12);
+  animation: pulseB .45s ease;
+}
+.ans.wrong{
+  border:3px solid rgba(255,107,107,0.95)!important;
+  box-shadow:0 14px 40px rgba(255,107,107,0.12);
+}
+.ans.removed{ opacity:0.32; pointer-events:none; transform:none; box-shadow:none; border-style:dashed; }
+
+/* small label/metadata inside answer when needed */
+.ans .label-small{ font-size:12px; color: rgba(6,6,6,0.55) }
+
+/* ---------------------------
+   Items grid (profile)
+   --------------------------- */
+.items-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.item-card{
+  padding:10px;border-radius:10px;background:rgba(255,255,255,0.02);min-width:150px;cursor:pointer;border:1px solid rgba(255,255,255,0.03);
+  transition:transform .08s, box-shadow .08s;
+}
+.item-card:hover{ transform:translateY(-6px); box-shadow:0 12px 30px rgba(2,8,20,0.45) }
+.item-emoji{font-size:20px;margin-right:8px;vertical-align:middle}
+
+/* ---------------------------
+   Tables / leaderboard
+   --------------------------- */
+table{width:100%;border-collapse:collapse;margin-top:8px}
+table th, table td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;font-size:14px}
+
+/* ---------------------------
+   Footer & utilities
+   --------------------------- */
+.footer{margin-top:18px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px}
+.small{font-size:13px;color:var(--muted)}
+.muted{color:var(--muted)}
+.hidden{display:none !important}
+.hidden-visually{position:absolute!important;height:1px;width:1px;overflow:hidden;clip:rect(1px,1px,1px,1px);white-space:nowrap}
+
+/* ---------------------------
+   Animations / accessibility
+   --------------------------- */
+@keyframes pulseB { 0%{transform:scale(1)}50%{transform:scale(1.04)}100%{transform:scale(1)} }
+@media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important} }
+
+/* ---------------------------
+   Light theme override
+   --------------------------- */
+body.light-theme{
+  background: linear-gradient(180deg,#f5f7fb 0%, #e6eef6 100%);
+  color:#071425;
+}
+body.light-theme .card{background:#ffffff;color:inherit}
+body.light-theme .ans{ color:var(--text-900) }
+body.light-theme .top-points{ background: linear-gradient(90deg, rgba(6,183,212,0.07), rgba(109,140,255,0.05)); border-color: rgba(6,183,212,0.06) }
+
+/* ---------------------------
+   Small helpers
+   --------------------------- */
+.center{display:flex;align-items:center;justify-content:center}

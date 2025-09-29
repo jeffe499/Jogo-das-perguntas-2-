@@ -1,0 +1,63 @@
+<!-- index.html -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Quiz — Home</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <h1>Quiz — Perguntas & Fases</h1>
+      <div class="small muted">Rápido, simples e fácil</div>
+    </div>
+
+    <nav class="header-actions" aria-label="Navegação principal">
+      <a class="btn small-btn" href="index.html">Início</a>
+      <a class="btn small-btn" href="phases.html">Fases</a>
+      <a class="btn small-btn" href="shop.html">Loja</a>
+      <a class="btn small-btn" href="profile.html">Perfil</a>
+      <a class="btn small-btn" href="settings.html">Configurações</a>
+
+      <div id="topPoints" class="top-points" aria-live="polite">
+        <div class="small muted">Pontos</div>
+        <div id="topPointsValue" style="font-weight:800; font-size:18px">0</div>
+      </div>
+
+      <div id="userArea">
+        <button id="openAuth" class="btn small-btn">Entrar / Conta</button>
+        <button id="btnLogout" class="btn small-btn hidden">Sair</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="app card center-card">
+    <section>
+      <h2>Bem-vindo ao Quiz</h2>
+      <p class="small muted">Escolha uma opção para começar.</p>
+
+      <div style="margin-top:18px" class="menu-grid">
+        <a class="btn wide" href="phases.html">Fases</a>
+        <a class="btn wide" href="shop.html">Loja</a>
+        <a class="btn wide" href="profile.html">Perfil & Itens</a>
+        <a class="btn small-btn" href="phases.html">Fases</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div>Feito por jeffe477</div>
+    <div class="small muted">Dica: use a Loja para pegar vidas e itens úteis.</div>
+  </footer>
+
+<audio id="bgMusic" autoplay loop playsinline>
+  <source src="https://www.bensound.com/bensound-music/bensound-creativeminds.mp3" type="audio/mp3">
+</audio>
+
+
+
+  <script src="script.js"></script>
+</body>
+</html>

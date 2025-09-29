@@ -1,0 +1,50 @@
+<!-- quiz.html -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Quiz — Jogar</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="brand"><h1>Jogar</h1><div class="small muted">Boa sorte!</div></div>
+    <nav class="header-actions">
+      <a class="btn small-btn" href="index.html">Voltar</a>
+      <div id="topPoints" class="top-points">
+        <div class="small muted">Pontos</div>
+        <div id="topPointsValue" style="font-weight:800; font-size:18px">0</div>
+      </div>
+    </nav>
+  </header>
+
+  <main class="app card">
+    <section id="quizScreen">
+      <div class="quiz-header" style="display:flex;justify-content:space-between;align-items:center">
+        <div>Fase <span id="quizPhaseNum">1</span> · Pergunta <span id="quizIndex">1</span>/<span id="quizTotal">5</span></div>
+        <div style="text-align:right">
+          <div class="small muted">Sessão</div>
+          <div id="sessionScore" style="font-weight:800;font-size:20px">0 pts</div>
+        </div>
+      </div>
+
+      <div id="questionCard" class="question-card">
+        <div id="questionText" class="question">A pergunta aparecerá aqui</div>
+        <div id="answersList" class="answers"></div>
+      </div>
+
+      <div class="row" style="margin-top:12px;justify-content:flex-end">
+        <button class="btn" id="btnFinish">Sair da fase</button>
+      </div>
+    </section>
+  </main>
+<audio id="bgMusic" autoplay loop playsinline>
+  <source src="https://www.bensound.com/bensound-music/bensound-creativeminds.mp3" type="audio/mp3">
+</audio>
+
+  <footer class="footer"><div class="small muted">Querido jogador — divirta-se!</div></footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!-- shop.html -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Quiz — Loja</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="brand"><h1>Loja</h1><div class="small muted">Compre itens com pontos</div></div>
+    <nav class="header-actions">
+      <a class="btn small-btn" href="index.html">Voltar</a>
+      <div id="topPoints" class="top-points">
+        <div class="small muted">Pontos</div>
+        <div id="topPointsValue" style="font-weight:800; font-size:18px">0</div>
+      </div>
+    </nav>
+  </header>
+
+  <main class="app card">
+    <section>
+      <div id="shopContainer"></div>
+      <div style="margin-top:14px">
+        <button class="btn" onclick="window.location='profile.html'">Ver meus itens</button>
+      </div>
+    </section>
+  </main>
+<audio id="bgMusic" autoplay loop playsinline>
+  <source src="https://www.bensound.com/bensound-music/bensound-creativeminds.mp3" type="audio/mp3">
+</audio>
+
+  <footer class="footer"><div class="small muted">Volte sempre à loja!</div></footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

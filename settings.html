@@ -1,0 +1,50 @@
+<!-- settings.html -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Quiz — Configurações</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="brand"><h1>Configurações</h1><div class="small muted">Ajuste som e tema</div></div>
+    <nav class="header-actions">
+      <a class="btn small-btn" href="index.html">Voltar</a>
+      <div id="topPoints" class="top-points">
+        <div class="small muted">Pontos</div>
+        <div id="topPointsValue" style="font-weight:800; font-size:18px">0</div>
+      </div>
+    </nav>
+  </header>
+
+  <main class="app card">
+    <section>
+      <div class="config-row">
+        <label>Música: <span id="musicVolText">100</span>%</label>
+        <input type="range" id="musicVolumeRange" min="0" max="100" value="100">
+      </div>
+      <div class="config-row">
+        <label>Efeitos (SFX): <span id="sfxVolText">100</span>%</label>
+        <input type="range" id="sfxVolumeRange" min="0" max="100" value="100">
+      </div>
+      <div class="config-row">
+        <label>Tema:
+          <select id="themeToggle">
+            <option value="dark">Escuro</option>
+            <option value="light">Claro</option>
+          </select>
+        </label>
+      </div>
+    </section>
+  </main>
+<audio id="bgMusic" autoplay loop playsinline>
+  <source src="https://www.bensound.com/bensound-music/bensound-creativeminds.mp3" type="audio/mp3">
+</audio>
+
+  <footer class="footer"><div class="small muted">Preferências salvas com AutoSave (se ativo).</div></footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
