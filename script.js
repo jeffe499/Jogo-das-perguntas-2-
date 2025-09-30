@@ -1,4 +1,3 @@
-// script.js
 const BIN_ID = "68c879f9d0ea881f407f0797";
 const MASTER_KEY = "$2a$10$3LMKVXiRGejkqgkKPn1PLue3gId0dWY/xN2fjHq1RCtx8UPYZicfq";
 const ACCESS_KEY = "$2a$10$1gKTJqvxP6cwzqa972KtievzGRIkUilZAt66wtS7ofz3B1UP3fQfe";
@@ -54,42 +53,44 @@ window.state = {
   phasesMeta: []
 };
 
+// WebAudio setup for SFX
 const AudioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const sfxGain = AudioCtx.createGain();
 sfxGain.connect(AudioCtx.destination);
 
 async function ensureAudioContext() {
   if (AudioCtx.state === 'suspended') {
-    try { await AudioCtx.resume(); } catch (e) {}
+    try { await AudioCtx.resume(); } catch (e) { /* ignore */ }
   }
 }
-async function playSfx(type = 'correct') {
-if (!window.state.settings.sfx) return;
-try {
-await ensureAudioContext();
-const ctx = AudioCtx;
-const osc = ctx.createOscillator();
-const env = ctx.createGain();
-// Aumentei os valores iniciais para conseguir um som mais alto
-if (type === 'correct') { osc.frequency.value = 880; osc.type = 'sine'; env.gain.value = 1.6; }
-else { osc.frequency.value = 220; osc.type = 'sawtooth'; env.gain.value = 2.0; }
-osc.connect(env).connect(sfxGain);
-osc.start();
-const decay = (type === 'correct') ? 0.18 : 0.28;
-env.gain.setValueAtTime(env.gain.value, ctx.currentTime);
-try { env.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decay); }
-catch (e) { env.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + decay); }
-setTimeout(() => { try { osc.stop(); osc.disconnect(); env.disconnect(); } catch (e) {} }, Math.ceil((decay + 0.05) * 1000));
-} catch (e) { console.warn('SFX error', e); }
-}
 
+// --- SFX: louder by default and respects settings.sfx ---
+async function playSfx(type = 'correct') {
+  if (!window.state.settings.sfx) return;
+  try {
+    await ensureAudioContext();
+    const ctx = AudioCtx;
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    if (type === 'correct') { osc.frequency.value = 880; osc.type = 'sine'; env.gain.value = 1.6; }
+    else { osc.frequency.value = 220; osc.type = 'sawtooth'; env.gain.value = 2.0; }
+    osc.connect(env).connect(sfxGain);
+    osc.start();
+    const decay = (type === 'correct') ? 0.18 : 0.28;
+    env.gain.setValueAtTime(env.gain.value, ctx.currentTime);
+    try { env.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decay); }
+    catch (e) { env.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + decay); }
+    setTimeout(() => { try { osc.stop(); osc.disconnect(); env.disconnect(); } catch (e) {} }, Math.ceil((decay + 0.05) * 1000));
+  } catch (e) { console.warn('SFX error', e); }
+}
 
 function setSfxVolume() {
-const v = Math.max(0, Math.min(100, window.state.settings.sfxVolume || 100));
-// aumentei o multiplicador de 0.30 para 0.60 para dar mais potência aos toques
-sfxGain.gain.value = (v / 100) * 0.60;
+  const v = Math.max(0, Math.min(100, window.state.settings.sfxVolume || 100));
+  // higher multiplier for stronger SFX
+  sfxGain.gain.value = (v / 100) * 0.60;
 }
 
+// --- Remote state (JSONBin) ---
 async function loadState() {
   try {
     const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
@@ -147,10 +148,12 @@ function updateTopPointsUI() {
   els.forEach(el => { el.innerText = pts; });
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+// Centralized initialization that runs once DOM is ready
+async function appInit() {
   bindGlobalButtons();
   const remote = await loadState();
   if (remote && typeof remote === 'object') {
+    // Merge remote into local state but keep defaults
     window.state = Object.assign({}, window.state, remote);
     window.state.settings = Object.assign({}, window.state.settings || {}, (remote.settings || {}));
     ensurePhasesMeta();
@@ -158,6 +161,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initDefaultState();
     if (window.state.settings.autoSave) await saveState();
   }
+
   applyTheme();
   setSfxVolume();
   renderPhaseListIfPresent();
@@ -169,7 +173,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateAuthButtons();
   updateTopPointsUI();
   setMusicControlsIfPresent();
-});
+
+  // Music: apply user preference immediately (do not force-play audio)
+  if (!window.state.settings.music) {
+    // user disabled music => ensure it is stopped and muted
+    stopMusic();
+    const m = bgMusicEl(); if (m) { try { m.pause(); } catch(e){} }
+  } else {
+    // music enabled in settings: set volume/playback rate but do not auto-play without user gesture
+    setMusicVolume();
+    setMusicPlaybackRate();
+  }
+
+  // Attach one user-gesture to start music (only if enabled)
+  document.body.addEventListener("click", () => {
+    if (window.state.settings.music) {
+      playMusic();
+    }
+  }, { once: true });
+}
 
 function bindGlobalButtons() {
   const btnLogout = $('btnLogout');
@@ -200,14 +222,20 @@ function initDefaultState() {
 }
 
 function bgMusicEl() { return $('bgMusic'); }
+
 async function playMusic() {
+  if (!window.state.settings.music) return; // respect user's off switch
   const m = bgMusicEl();
   if (!m) return;
-  await ensureAudioContext();
+  try {
+    await ensureAudioContext();
+  } catch (e) {}
   setMusicVolume();
   setMusicPlaybackRate();
-  const playPromise = m.play();
-  if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(()=>{});
+  try {
+    const playPromise = m.play();
+    if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(()=>{});
+  } catch (e) { /* ignore play errors until user interacts */ }
 }
 function stopMusic() {
   const m = bgMusicEl();
@@ -224,31 +252,39 @@ function setMusicPlaybackRate() {
   if (!m) return;
   try { m.playbackRate = window.state.settings.playbackRate || 1.0; } catch (e) { console.warn('playbackRate error', e); }
 }
+
 function setMusicControlsIfPresent() {
+  // Music volume slider
   const mv = $('musicVolumeRange');
   if (mv) {
     mv.value = window.state.settings.musicVolume;
     mv.oninput = (e) => { window.state.settings.musicVolume = +e.target.value; $('musicVolText').innerText = window.state.settings.musicVolume; setMusicVolume(); maybeSave(); updateTopPointsUI(); };
   }
+  // SFX volume slider
   const sfx = $('sfxVolumeRange');
   if (sfx) {
     sfx.value = window.state.settings.sfxVolume;
     sfx.oninput = (e) => { window.state.settings.sfxVolume = +e.target.value; $('sfxVolText').innerText = window.state.settings.sfxVolume; setSfxVolume(); maybeSave(); };
   }
+  // Music ON/OFF checkbox (id = musicToggle)
   const mt = $('musicToggle');
   if (mt) {
     mt.checked = !!window.state.settings.music;
     mt.onchange = (e) => { window.state.settings.music = e.target.checked; if (window.state.settings.music) playMusic(); else stopMusic(); maybeSave(); };
   }
+  // SFX ON/OFF checkbox (id = sfxToggle)
   const st = $('sfxToggle');
   if (st) {
     st.checked = !!window.state.settings.sfx;
     st.onchange = (e) => { window.state.settings.sfx = e.target.checked; maybeSave(); };
   }
+  // AutoSave checkbox
   const auto = $('autoSave');
   if (auto) { auto.checked = !!window.state.settings.autoSave; auto.onchange = (e) => { window.state.settings.autoSave = e.target.checked; if (window.state.settings.autoSave) saveState(); }; }
+  // Theme select
   const theme = $('themeToggle');
   if (theme) { theme.value = window.state.settings.theme || 'dark'; theme.onchange = (e) => { window.state.settings.theme = e.target.value; applyTheme(); maybeSave(); }; }
+  // Playback rate if available
   const playbackRate = $('playbackRate');
   if (playbackRate) { playbackRate.value = window.state.settings.playbackRate || 1.0; playbackRate.oninput = (e) => { window.state.settings.playbackRate = parseFloat(e.target.value); if ($('playbackRateValue')) $('playbackRateValue').innerText = window.state.settings.playbackRate.toFixed(2); setMusicPlaybackRate(); maybeSave(); }; }
 }
@@ -259,6 +295,7 @@ function renderConfigsUIIfPresent() {
   if ($('sfxVolText')) $('sfxVolText').innerText = window.state.settings.sfxVolume;
   setMusicControlsIfPresent();
 }
+
 function applyTheme() {
   const t = window.state.settings.theme || 'dark';
   document.body.classList.toggle('light-theme', t === 'light');
@@ -730,13 +767,34 @@ function renderAuthIfPresent() {
   const bL = $('btnLogin'); if (bL) bL.onclick = login;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  if ($('btnLogout')) $('btnLogout').onclick = logout;
-  if ($('btnLogoutSmall')) $('btnLogoutSmall').onclick = logout;
-  if ($('openAuth')) $('openAuth').onclick = () => { window.location = 'auth.html'; };
+// music time persistence
+function saveMusicTime() {
+  const m = document.getElementById("bgMusic");
+  if (m) {
+    localStorage.setItem("musicTime", m.currentTime);
+  }
+}
+function restoreMusicTime() {
+  const m = document.getElementById("bgMusic");
+  if (m) {
+    const t = parseFloat(localStorage.getItem("musicTime")) || 0;
+    try { m.currentTime = t; } catch(e) {}
+    // don't force-play here; rely on user gesture
+  }
+}
+
+// Attach top-level DOMContentLoaded once
+document.addEventListener('DOMContentLoaded', async () => {
+  await appInit();
+  // restore music time after init
+  restoreMusicTime();
+
+  // If there are ownedItems on page, render them after a short delay
   if (exists('ownedItems')) {
     setTimeout(() => { renderProfile(); renderOwnedItemsQuick(); }, 200);
   }
+
+  // If on quiz.html and a pending session exists, start it
   if (window.location.pathname.endsWith('quiz.html')) {
     if (!session) {
       const p = sessionStorage.getItem('pendingSession');
@@ -753,50 +811,19 @@ document.addEventListener('DOMContentLoaded', () => {
       renderQuestion();
     }
   }
+
   updateUIAllPages();
+
+  // Save music time on unload
+  window.addEventListener("beforeunload", saveMusicTime);
 });
 
+// expose useful functions for debugging
 window.startQuiz = startQuiz;
 window.playCurrentPhase = playCurrentPhase;
 window.buyItem = buyItem;
 window.saveStateManual = saveState;
 window.loadStateManual = loadState;
 window.getState = () => window.state;
-function saveMusicTime() {
-  const m = document.getElementById("bgMusic");
-  if (m) {
-    localStorage.setItem("musicTime", m.currentTime);
-  }
-}
-
-function restoreMusicTime() {
-  const m = document.getElementById("bgMusic");
-  if (m) {
-    const t = parseFloat(localStorage.getItem("musicTime")) || 0;
-    m.currentTime = t;
-    playMusic();
-  }
-}
-
-// Salva antes de sair da página
-window.addEventListener("beforeunload", saveMusicTime);
-
-// Restaura quando entrar
-window.addEventListener("DOMContentLoaded", restoreMusicTime);
-
-window.addEventListener("DOMContentLoaded", () => {
-  const music = document.getElementById("bgMusic");
-
-  // Garante volume inicial
-  if (window.state && window.state.settings && window.state.settings.music) {
-    setMusicVolume();
-    setMusicPlaybackRate();
-  }
-
-  // Só começa a tocar após clique do usuário
-  document.body.addEventListener("click", () => {
-    if (window.state.settings.music) {
-      playMusic();
-    }
-  }, { once: true }); // só precisa uma vez
-});
+window.saveMusicTime = saveMusicTime;
+window.restoreMusicTime = restoreMusicTime;

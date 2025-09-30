@@ -24,6 +24,35 @@
   --max-width: 1080px;
 }
 
+/* style.css — Tema refinado, harmônico e responsivo (versão melhorada)
+   Mantive a paleta original e adicionei estilos para inputs, range, checkbox e select.
+*/
+
+/* ---------------------------
+   Variáveis de tema
+   --------------------------- */
+:root{
+  --bg-900: #071022;
+  --bg-800: #0c1b2b;
+  --panel: rgba(255,255,255,0.04);
+  --glass: rgba(255,255,255,0.03);
+  --muted: #9fb0c8;
+  --text-100: #e9f3fb;
+  --text-900: #061426;
+  --accent: #3dd5e3;
+  --accent-2: #6d8cff;
+  --accent-contrast: #042033;
+  --positive: #34d399;
+  --danger: #ff6b6b;
+  --card-radius: 14px;
+  --shadow-1: 0 10px 30px rgba(2,8,20,0.6);
+  --glass-border: rgba(255,255,255,0.04);
+  --control-h: 44px;
+  --max-width: 1080px;
+  --trans: 160ms cubic-bezier(.2,.9,.2,1);
+  --focus-ring: 0 0 0 4px rgba(61,213,227,0.12);
+}
+
 /* ---------------------------
    Reset & base
    --------------------------- */
@@ -34,8 +63,10 @@ body{
   color:var(--text-100);
   -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
-  line-height:1.4;
-  padding:18px;
+  line-height:1.45;
+  padding:20px;
+  font-size:15px;
+  -webkit-font-variant-ligatures: none;
 }
 
 /* ---------------------------
@@ -47,11 +78,12 @@ body{
   align-items:center;
   justify-content:space-between;
   gap:14px;
-  margin-bottom:16px;
-  padding:10px 12px;
+  margin-bottom:18px;
+  padding:14px 16px;
   border-radius:12px;
   background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
   border:1px solid rgba(255,255,255,0.02);
+  box-shadow: 0 6px 18px rgba(2,8,20,0.35);
 }
 .brand h1{margin:0;font-size:18px;letter-spacing:0.2px}
 .brand .small{font-size:13px;color:var(--muted);margin-top:4px}
@@ -75,13 +107,13 @@ body{
   display:flex;
   flex-direction:column;
   align-items:flex-end;
-  padding:6px 12px;
+  padding:8px 14px;
   border-radius:999px;
   background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
   border: 1px solid rgba(255,255,255,0.03);
-  min-width:86px;
+  min-width:94px;
 }
-.top-points .small{font-size:11px;color:var(--muted)}
+.top-points .small{font-size:12px;color:var(--muted)}
 #topPointsValue{color:var(--text-100); font-weight:800; font-size:16px}
 
 /* Buttons */
@@ -95,11 +127,15 @@ button.btn, a.btn{
   font-weight:700;
   min-height:36px;
   transition:transform .08s ease, box-shadow .08s ease, background .12s;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
 }
-button.btn:hover, a.btn:hover{ transform:translateY(-2px); box-shadow:0 8px 20px rgba(2,8,20,0.35) }
+button.btn:hover, a.btn:hover{ transform:translateY(-2px); box-shadow:0 8px 20px rgba(2,8,20,0.28) }
 button.btn.primary, a.btn.primary{
   background: linear-gradient(90deg,var(--accent),var(--accent-2));
-  color: var(--text-900);
+  color: var(--accent-contrast);
   border: none;
   box-shadow:0 10px 30px rgba(61,213,227,0.08);
 }
@@ -112,11 +148,28 @@ button.btn.primary, a.btn.primary{
 .card{
   background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
   border-radius:var(--card-radius);
-  padding:16px;
+  padding:18px;
   box-shadow:var(--shadow-1);
   border:1px solid var(--glass-border);
 }
 .center-card{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:26px}
+
+/* form layout */
+.config-row{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:14px;
+  flex-wrap:wrap;
+}
+.config-row label{min-width:120px; color:var(--muted); font-weight:600}
+.config-row .control{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex:1;
+  min-width:180px;
+}
 
 /* grid layout for pages */
 .main, .app.main{display:grid;grid-template-columns:1fr 360px;gap:18px}
@@ -126,30 +179,96 @@ button.btn.primary, a.btn.primary{
 }
 
 /* ---------------------------
-   Home / Landing
+   Inputs — range, checkbox, select, number
    --------------------------- */
-.home-hero{
-  display:flex;flex-direction:column;gap:12px;align-items:flex-start;
-}
-.home-hero h2{font-size:22px;margin:0}
-.home-hero p{color:var(--muted);margin:0}
 
-/* ---------------------------
-   Phase list / shop / profile
-   --------------------------- */
-.phase-list.compact{display:flex;flex-wrap:wrap;gap:10px}
-.phase{
-  padding:12px 14px;border-radius:12px;background:rgba(255,255,255,0.02);cursor:pointer;
+/* Range slider styling */
+input[type="range"]{
+  -webkit-appearance:none;
+  appearance:none;
+  height: var(--control-h);
+  width:100%;
+  background:transparent;
+}
+input[type="range"]:focus{ outline:none; box-shadow: var(--focus-ring); border-radius:8px;}
+
+/* Track */
+input[type="range"]::-webkit-slider-runnable-track{
+  height:10px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border-radius:999px;
   border:1px solid rgba(255,255,255,0.03);
-  min-width:180px;
 }
-.phase.locked{opacity:0.5;filter:grayscale(30%)}
+input[type="range"]::-moz-range-track{
+  height:10px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.03);
+}
 
-/* shop item row */
-#shopContainer .phase{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px}
+/* Thumb */
+input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  margin-top:-4px;
+  background:linear-gradient(180deg,var(--accent),var(--accent-2));
+  border:3px solid #fff;
+  box-shadow: 0 6px 18px rgba(6,20,40,0.45);
+  transition: transform var(--trans);
+}
+input[type="range"]::-webkit-slider-thumb:active{ transform:scale(0.98) }
+input[type="range"]::-moz-range-thumb{
+  width:18px;height:18px;border-radius:50%;
+  background:linear-gradient(180deg,var(--accent),var(--accent-2));
+  border:3px solid #fff; box-shadow: 0 6px 18px rgba(6,20,40,0.45);
+}
+
+/* Checkbox custom */
+.checkbox-wrap{
+  display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;
+  color:var(--muted); font-weight:600;
+}
+input[type="checkbox"]{
+  appearance:none;
+  width:20px;height:20px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00));
+  display:inline-block;vertical-align:middle;
+  transition:all var(--trans);
+  position:relative;
+}
+input[type="checkbox"]:checked{
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  border:1px solid rgba(0,0,0,0.08);
+}
+input[type="checkbox"]:checked::after{
+  content: "✔";
+  position:absolute;
+  left:3px; top:0; font-size:12px; color:var(--accent-contrast); font-weight:900;
+}
+input[type="checkbox"]:focus{ box-shadow: var(--focus-ring); outline:none; }
+
+/* Select styling */
+select{
+  height:var(--control-h);
+  min-width:180px;
+  padding:8px 12px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,0.04);
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+  color:var(--text-100);
+  font-weight:700;
+  cursor:pointer;
+  transition: box-shadow var(--trans), transform .12s;
+}
+select:focus{ box-shadow: var(--focus-ring); outline:none; transform:translateY(-2px); }
+
+/* Hide default audio controls if needed; keep accessible via JS */
+audio[hidden]{ display:none !important; }
 
 /* ---------------------------
-   Quiz card
+   Quiz card / answers (kept from original but tuned)
    --------------------------- */
 .question-card{
   margin-top:12px;padding:18px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));border:1px solid rgba(255,255,255,0.02)
@@ -157,12 +276,14 @@ button.btn.primary, a.btn.primary{
 .question{font-size:20px;margin-bottom:12px;font-weight:800;color:var(--text-100);line-height:1.26}
 .answers{display:flex;flex-direction:column;gap:12px}
 
-/* Answer buttons */
+/* Answer buttons — improved contrast and accessible focus */
 .ans{
   padding:14px 16px;border-radius:12px;color:var(--text-900);font-weight:800;cursor:pointer;border:2px solid rgba(255,255,255,0.06);
   transition:transform .12s, box-shadow .12s, opacity .12s; box-shadow:0 8px 20px rgba(2,8,20,0.45);
   display:flex;align-items:center;justify-content:space-between; user-select:none;
+  background:linear-gradient(90deg, rgba(255,255,255,0.96), rgba(255,255,255,0.98)); /* will be overridden by nth-child */
 }
+.ans:focus{ outline:none; box-shadow: var(--focus-ring); transform:translateY(-4px) }
 
 /* default palette by position for visual variety (kept subtle) */
 .answers .ans:nth-child(1){ background: linear-gradient(90deg,#bff7ef,#9feaf0); color:var(--text-900) }
@@ -171,7 +292,8 @@ button.btn.primary, a.btn.primary{
 .answers .ans:nth-child(4){ background: linear-gradient(90deg,#ffdfe6,#ffbfcf); color:var(--text-900) }
 
 .ans:hover{ transform:translateY(-6px); box-shadow:0 18px 40px rgba(2,8,20,0.55) }
-.ans:focus{ outline:3px solid rgba(6,182,212,0.12); outline-offset:3px }
+.ans:active{ transform:translateY(-2px) }
+.ans.removed{ opacity:0.32; pointer-events:none; transform:none; box-shadow:none; border-style:dashed; }
 
 /* correct / wrong states (high contrast outlines) */
 .ans.correct{
@@ -183,13 +305,12 @@ button.btn.primary, a.btn.primary{
   border:3px solid rgba(255,107,107,0.95)!important;
   box-shadow:0 14px 40px rgba(255,107,107,0.12);
 }
-.ans.removed{ opacity:0.32; pointer-events:none; transform:none; box-shadow:none; border-style:dashed; }
 
 /* small label/metadata inside answer when needed */
 .ans .label-small{ font-size:12px; color: rgba(6,6,6,0.55) }
 
 /* ---------------------------
-   Items grid (profile)
+   Items grid & table (kept, minor tweaks)
    --------------------------- */
 .items-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
 .item-card{
@@ -199,9 +320,6 @@ button.btn.primary, a.btn.primary{
 .item-card:hover{ transform:translateY(-6px); box-shadow:0 12px 30px rgba(2,8,20,0.45) }
 .item-emoji{font-size:20px;margin-right:8px;vertical-align:middle}
 
-/* ---------------------------
-   Tables / leaderboard
-   --------------------------- */
 table{width:100%;border-collapse:collapse;margin-top:8px}
 table th, table td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;font-size:14px}
 
@@ -235,3 +353,14 @@ body.light-theme .top-points{ background: linear-gradient(90deg, rgba(6,183,212,
    Small helpers
    --------------------------- */
 .center{display:flex;align-items:center;justify-content:center}
+
+/* ---------------------------
+   Mobile polish
+   --------------------------- */
+@media (max-width:520px){
+  body{padding:12px;font-size:14px}
+  .header{padding:10px}
+  .config-row{flex-direction:column;align-items:flex-start;}
+  .brand h1{font-size:16px}
+  .top-points{min-width:72px;padding:6px 10px}
+}
