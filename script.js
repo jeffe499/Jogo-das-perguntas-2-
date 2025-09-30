@@ -64,26 +64,30 @@ async function ensureAudioContext() {
   }
 }
 async function playSfx(type = 'correct') {
-  if (!window.state.settings.sfx) return;
-  try {
-    await ensureAudioContext();
-    const ctx = AudioCtx;
-    const osc = ctx.createOscillator();
-    const env = ctx.createGain();
-    if (type === 'correct') { osc.frequency.value = 880; osc.type = 'sine'; env.gain.value = 1.0; }
-    else { osc.frequency.value = 220; osc.type = 'sawtooth'; env.gain.value = 1.4; }
-    osc.connect(env).connect(sfxGain);
-    osc.start();
-    const decay = (type === 'correct') ? 0.18 : 0.28;
-    env.gain.setValueAtTime(env.gain.value, ctx.currentTime);
-    try { env.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decay); }
-    catch (e) { env.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + decay); }
-    setTimeout(() => { try { osc.stop(); osc.disconnect(); env.disconnect(); } catch (e) {} }, Math.ceil((decay + 0.05) * 1000));
-  } catch (e) { console.warn('SFX error', e); }
+if (!window.state.settings.sfx) return;
+try {
+await ensureAudioContext();
+const ctx = AudioCtx;
+const osc = ctx.createOscillator();
+const env = ctx.createGain();
+// Aumentei os valores iniciais para conseguir um som mais alto
+if (type === 'correct') { osc.frequency.value = 880; osc.type = 'sine'; env.gain.value = 1.6; }
+else { osc.frequency.value = 220; osc.type = 'sawtooth'; env.gain.value = 2.0; }
+osc.connect(env).connect(sfxGain);
+osc.start();
+const decay = (type === 'correct') ? 0.18 : 0.28;
+env.gain.setValueAtTime(env.gain.value, ctx.currentTime);
+try { env.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decay); }
+catch (e) { env.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + decay); }
+setTimeout(() => { try { osc.stop(); osc.disconnect(); env.disconnect(); } catch (e) {} }, Math.ceil((decay + 0.05) * 1000));
+} catch (e) { console.warn('SFX error', e); }
 }
+
+
 function setSfxVolume() {
-  const v = Math.max(0, Math.min(100, window.state.settings.sfxVolume || 100));
-  sfxGain.gain.value = (v / 100) * 0.30;
+const v = Math.max(0, Math.min(100, window.state.settings.sfxVolume || 100));
+// aumentei o multiplicador de 0.30 para 0.60 para dar mais potência aos toques
+sfxGain.gain.value = (v / 100) * 0.60;
 }
 
 async function loadState() {
