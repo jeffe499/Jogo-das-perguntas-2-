@@ -1,7 +1,20 @@
-const BIN_ID = "68c879f9d0ea881f407f0797";
-const MASTER_KEY = "$2a$10$3LMKVXiRGejkqgkKPn1PLue3gId0dWY/xN2fjHq1RCtx8UPYZicfq";
-const ACCESS_KEY = "$2a$10$1gKTJqvxP6cwzqa972KtievzGRIkUilZAt66wtS7ofz3B1UP3fQfe";
+/* ---------- quiz-app-fixed.js — versão corrigida e melhorada ----------
+   Principais mudanças:
+   - Correções de seletores (consistência #answersList .ans)
+   - Fallback para localStorage caso a API remota falhe ou as keys estejam expostas
+   - Debounce em saves remotos (maybeSave)
+   - Melhor tratamento do AudioContext (resume, volumes, ramp)
+   - Correções em ensurePhasesMeta / renderPhaseList / progress display
+   - Proteções e validações (perguntas vazias, índices inválidos)
+   - Recomendações de segurança (chaves não devem ficar no cliente)
+*/
 
+/* ---------- Config (mova MASTER/ACCESS keys para backend em produção) ---------- */
+const BIN_ID = "68c879f9d0ea881f407f0797"; // idealmente guardado no servidor
+const MASTER_KEY = "$2a$10$3LMKVXiRGejkqgkKPn1PLue3gId0dWY/xN2fjHq1RCtx8UPYZicfq"; // NÃO deixe exposto em cliente
+const ACCESS_KEY = "$2a$10$1gKTJqvxP6cwzqa972KtievzGRIkUilZAt66wtS7ofz3B1UP3fQfe"; // use servidor para isto
+
+/* ---------- Dados de fases e loja (mantidos) ---------- */
 const phasesData = [
   {
     id: 1,
@@ -37,6 +50,7 @@ const shopItems = [
   { id: "autodica", name: "Auto-dica", emoji: "🤖", cost: 30, desc: "Usa automaticamente 1 dica ao entrar em cada fase." }
 ];
 
+/* ---------- Estado global padrão ---------- */
 window.state = {
   accounts: {},
   currentUser: null,
@@ -53,18 +67,24 @@ window.state = {
   phasesMeta: []
 };
 
-// WebAudio setup for SFX
+/* ---------- WebAudio (SFX) ---------- */
 const AudioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const sfxGain = AudioCtx.createGain();
 sfxGain.connect(AudioCtx.destination);
 
 async function ensureAudioContext() {
+  if (!AudioCtx) return;
   if (AudioCtx.state === 'suspended') {
-    try { await AudioCtx.resume(); } catch (e) { /* ignore */ }
+    try { await AudioCtx.resume(); } catch (e) { console.warn('Audio resume failed', e); }
   }
 }
 
-// --- SFX: louder by default and respects settings.sfx ---
+function setSfxVolume() {
+  const v = Math.max(0, Math.min(100, window.state.settings.sfxVolume || 100));
+  // smoother/safer set
+  try { sfxGain.gain.setValueAtTime((v / 100) * 0.60, AudioCtx.currentTime); } catch (e) { sfxGain.gain.value = (v / 100) * 0.60; }
+}
+
 async function playSfx(type = 'correct') {
   if (!window.state.settings.sfx) return;
   try {
@@ -77,53 +97,82 @@ async function playSfx(type = 'correct') {
     osc.connect(env).connect(sfxGain);
     osc.start();
     const decay = (type === 'correct') ? 0.18 : 0.28;
-    env.gain.setValueAtTime(env.gain.value, ctx.currentTime);
+    // try expo ramp, fallback to linear
     try { env.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + decay); }
     catch (e) { env.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + decay); }
     setTimeout(() => { try { osc.stop(); osc.disconnect(); env.disconnect(); } catch (e) {} }, Math.ceil((decay + 0.05) * 1000));
   } catch (e) { console.warn('SFX error', e); }
 }
 
-function setSfxVolume() {
-  const v = Math.max(0, Math.min(100, window.state.settings.sfxVolume || 100));
-  // higher multiplier for stronger SFX
-  sfxGain.gain.value = (v / 100) * 0.60;
+/* ---------- Remote state (JSONBin) com fallback para localStorage ---------- */
+let _saveDebounce = null;
+const LOCAL_KEY = 'quiz:state';
+
+async function tryLoadRemote() {
+  if (!BIN_ID || !MASTER_KEY || !ACCESS_KEY) throw new Error('Remote keys missing');
+  const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+    headers: { "X-Master-Key": MASTER_KEY, "X-Access-Key": ACCESS_KEY }
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  return data.record;
 }
 
-// --- Remote state (JSONBin) ---
+async function trySaveRemote(stateObj) {
+  if (!BIN_ID || !MASTER_KEY || !ACCESS_KEY) throw new Error('Remote keys missing');
+  const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Master-Key": MASTER_KEY,
+      "X-Access-Key": ACCESS_KEY
+    },
+    body: JSON.stringify(stateObj)
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return true;
+}
+
 async function loadState() {
   try {
-    const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-      headers: { "X-Master-Key": MASTER_KEY, "X-Access-Key": ACCESS_KEY }
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    return data.record;
+    const remote = await tryLoadRemote();
+    // Validate remote
+    if (remote && typeof remote === 'object') return remote;
+    throw new Error('Invalid remote payload');
   } catch (err) {
-    console.warn("loadState failed:", err);
+    console.warn('loadState remote failed:', err);
+    try {
+      const raw = localStorage.getItem(LOCAL_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) { console.warn('local load failed', e); }
     return null;
   }
 }
-async function saveState() {
-  try {
-    await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Master-Key": MASTER_KEY,
-        "X-Access-Key": ACCESS_KEY
-      },
-      body: JSON.stringify(window.state)
-    });
-  } catch (err) {
-    console.error("saveState failed:", err);
-  }
+
+async function saveState(useRemote = true) {
+  // Debounced save to avoid too many remote calls
+  if (_saveDebounce) clearTimeout(_saveDebounce);
+  return new Promise((resolve) => {
+    _saveDebounce = setTimeout(async () => {
+      const stateCopy = JSON.parse(JSON.stringify(window.state));
+      try {
+        if (useRemote) await trySaveRemote(stateCopy);
+        localStorage.setItem(LOCAL_KEY, JSON.stringify(stateCopy));
+        resolve(true);
+      } catch (err) {
+        console.warn('saveState remote failed, persisted to localStorage:', err);
+        try { localStorage.setItem(LOCAL_KEY, JSON.stringify(stateCopy)); } catch (e) { console.error('local persist failed', e); }
+        resolve(false);
+      }
+    }, 350);
+  });
 }
 
 function maybeSave() {
   if (window.state.settings.autoSave) saveState();
 }
 
+/* ---------- DOM helpers ---------- */
 const $ = id => document.getElementById(id);
 function exists(id) { return document.getElementById(id) !== null; }
 
@@ -148,20 +197,20 @@ function updateTopPointsUI() {
   els.forEach(el => { el.innerText = pts; });
 }
 
-// Centralized initialization that runs once DOM is ready
+/* ---------- Inicialização central ---------- */
 async function appInit() {
   bindGlobalButtons();
   const remote = await loadState();
   if (remote && typeof remote === 'object') {
-    // Merge remote into local state but keep defaults
+    // Merge remote into local state but keep sensible defaults
     window.state = Object.assign({}, window.state, remote);
     window.state.settings = Object.assign({}, window.state.settings || {}, (remote.settings || {}));
-    ensurePhasesMeta();
   } else {
     initDefaultState();
     if (window.state.settings.autoSave) await saveState();
   }
 
+  ensurePhasesMeta();
   applyTheme();
   setSfxVolume();
   renderPhaseListIfPresent();
@@ -174,119 +223,65 @@ async function appInit() {
   updateTopPointsUI();
   setMusicControlsIfPresent();
 
-  // Music: apply user preference immediately (do not force-play audio)
+  // Music: do not auto-play, but configure volume/playbackRate
   if (!window.state.settings.music) {
-    // user disabled music => ensure it is stopped and muted
     stopMusic();
-    const m = bgMusicEl(); if (m) { try { m.pause(); } catch(e){} }
-  } else {
-    // music enabled in settings: set volume/playback rate but do not auto-play without user gesture
-    setMusicVolume();
-    setMusicPlaybackRate();
-  }
+  } else { setMusicVolume(); setMusicPlaybackRate(); }
 
-  // Attach one user-gesture to start music (only if enabled)
-  document.body.addEventListener("click", () => {
-    if (window.state.settings.music) {
-      playMusic();
-    }
-  }, { once: true });
+  // Attach one user-gesture to start music (if enabled)
+  document.body.addEventListener("click", () => { if (window.state.settings.music) playMusic(); }, { once: true });
 }
 
 function bindGlobalButtons() {
-  const btnLogout = $('btnLogout');
-  if (btnLogout) btnLogout.onclick = () => { logout(); };
-  const btnLogoutSmall = $('btnLogoutSmall');
-  if (btnLogoutSmall) btnLogoutSmall.onclick = () => { logout(); };
-  const openAuth = $('openAuth');
-  if (openAuth) openAuth.onclick = () => { window.location = 'auth.html'; };
-  const btnFinish = $('btnFinish');
-  if (btnFinish) btnFinish.onclick = () => { if (confirm('Deseja sair da fase? Progresso será salvo.')) endPhaseEarly(); };
+  const btnLogout = $('btnLogout'); if (btnLogout) btnLogout.onclick = logout;
+  const btnLogoutSmall = $('btnLogoutSmall'); if (btnLogoutSmall) btnLogoutSmall.onclick = logout;
+  const openAuth = $('openAuth'); if (openAuth) openAuth.onclick = () => { window.location = 'auth.html'; };
+  const btnFinish = $('btnFinish'); if (btnFinish) btnFinish.onclick = () => { if (confirm('Deseja sair da fase? Progresso será salvo.')) endPhaseEarly(); };
 }
 
+/* ---------- Fases/meta ---------- */
 function ensurePhasesMeta() {
-  const ids = phasesData.map(p => p.id);
-  ids.forEach(id => {
-    if (!window.state.phasesMeta.find(x => x.id === id)) {
-      window.state.phasesMeta.push({ id, unlocked: id === 1, progress: 0 });
-    }
+  // Keep phasesMeta synced with phasesData and preserve unlocked/progress if present
+  const map = {};
+  (window.state.phasesMeta || []).forEach(m => { map[m.id] = m; });
+  window.state.phasesMeta = phasesData.map(p => {
+    if (map[p.id]) return Object.assign({}, { id: p.id, name: p.name }, map[p.id]);
+    return { id: p.id, name: p.name, unlocked: p.id === 1, progress: 0 };
   });
-  window.state.phasesMeta = phasesData.map(p => window.state.phasesMeta.find(m => m.id === p.id) || { id: p.id, unlocked: p.id === 1, progress: 0 });
 }
+
 function initDefaultState() {
   window.state.accounts = {};
   window.state.currentUser = null;
   window.state.settings = Object.assign({}, window.state.settings);
-  window.state.phasesMeta = phasesData.map(p => ({ id: p.id, unlocked: p.id === 1, progress: 0 }));
+  window.state.phasesMeta = phasesData.map(p => ({ id: p.id, name: p.name, unlocked: p.id === 1, progress: 0 }));
   window.state.accounts['player'] = { pass: btoa('1234'), points: 0, level: 1, items: {}, unlockedPhases: [1], best: 0 };
 }
 
 function bgMusicEl() { return $('bgMusic'); }
 
 async function playMusic() {
-  if (!window.state.settings.music) return; // respect user's off switch
-  const m = bgMusicEl();
-  if (!m) return;
-  try {
-    await ensureAudioContext();
-  } catch (e) {}
-  setMusicVolume();
-  setMusicPlaybackRate();
+  if (!window.state.settings.music) return;
+  const m = bgMusicEl(); if (!m) return;
+  try { await ensureAudioContext(); } catch (e) {}
+  setMusicVolume(); setMusicPlaybackRate();
   try {
     const playPromise = m.play();
     if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(()=>{});
-  } catch (e) { /* ignore play errors until user interacts */ }
+  } catch (e) { /* ignore until user gesture */ }
 }
-function stopMusic() {
-  const m = bgMusicEl();
-  if (m) m.pause();
-}
-function setMusicVolume() {
-  const m = bgMusicEl();
-  if (!m) return;
-  const vol = Math.max(0, Math.min(100, window.state.settings.musicVolume || 100));
-  m.volume = vol / 100;
-}
-function setMusicPlaybackRate() {
-  const m = bgMusicEl();
-  if (!m) return;
-  try { m.playbackRate = window.state.settings.playbackRate || 1.0; } catch (e) { console.warn('playbackRate error', e); }
-}
+function stopMusic() { const m = bgMusicEl(); if (m) m.pause(); }
+function setMusicVolume() { const m = bgMusicEl(); if (!m) return; const vol = Math.max(0, Math.min(100, window.state.settings.musicVolume || 100)); m.volume = vol / 100; }
+function setMusicPlaybackRate() { const m = bgMusicEl(); if (!m) return; try { m.playbackRate = window.state.settings.playbackRate || 1.0; } catch (e) { console.warn('playbackRate error', e); } }
 
 function setMusicControlsIfPresent() {
-  // Music volume slider
-  const mv = $('musicVolumeRange');
-  if (mv) {
-    mv.value = window.state.settings.musicVolume;
-    mv.oninput = (e) => { window.state.settings.musicVolume = +e.target.value; $('musicVolText').innerText = window.state.settings.musicVolume; setMusicVolume(); maybeSave(); updateTopPointsUI(); };
-  }
-  // SFX volume slider
-  const sfx = $('sfxVolumeRange');
-  if (sfx) {
-    sfx.value = window.state.settings.sfxVolume;
-    sfx.oninput = (e) => { window.state.settings.sfxVolume = +e.target.value; $('sfxVolText').innerText = window.state.settings.sfxVolume; setSfxVolume(); maybeSave(); };
-  }
-  // Music ON/OFF checkbox (id = musicToggle)
-  const mt = $('musicToggle');
-  if (mt) {
-    mt.checked = !!window.state.settings.music;
-    mt.onchange = (e) => { window.state.settings.music = e.target.checked; if (window.state.settings.music) playMusic(); else stopMusic(); maybeSave(); };
-  }
-  // SFX ON/OFF checkbox (id = sfxToggle)
-  const st = $('sfxToggle');
-  if (st) {
-    st.checked = !!window.state.settings.sfx;
-    st.onchange = (e) => { window.state.settings.sfx = e.target.checked; maybeSave(); };
-  }
-  // AutoSave checkbox
-  const auto = $('autoSave');
-  if (auto) { auto.checked = !!window.state.settings.autoSave; auto.onchange = (e) => { window.state.settings.autoSave = e.target.checked; if (window.state.settings.autoSave) saveState(); }; }
-  // Theme select
-  const theme = $('themeToggle');
-  if (theme) { theme.value = window.state.settings.theme || 'dark'; theme.onchange = (e) => { window.state.settings.theme = e.target.value; applyTheme(); maybeSave(); }; }
-  // Playback rate if available
-  const playbackRate = $('playbackRate');
-  if (playbackRate) { playbackRate.value = window.state.settings.playbackRate || 1.0; playbackRate.oninput = (e) => { window.state.settings.playbackRate = parseFloat(e.target.value); if ($('playbackRateValue')) $('playbackRateValue').innerText = window.state.settings.playbackRate.toFixed(2); setMusicPlaybackRate(); maybeSave(); }; }
+  const mv = $('musicVolumeRange'); if (mv) { mv.value = window.state.settings.musicVolume; mv.oninput = (e) => { window.state.settings.musicVolume = +e.target.value; if ($('musicVolText')) $('musicVolText').innerText = window.state.settings.musicVolume; setMusicVolume(); maybeSave(); updateTopPointsUI(); }; }
+  const sfx = $('sfxVolumeRange'); if (sfx) { sfx.value = window.state.settings.sfxVolume; sfx.oninput = (e) => { window.state.settings.sfxVolume = +e.target.value; if ($('sfxVolText')) $('sfxVolText').innerText = window.state.settings.sfxVolume; setSfxVolume(); maybeSave(); }; }
+  const mt = $('musicToggle'); if (mt) { mt.checked = !!window.state.settings.music; mt.onchange = (e) => { window.state.settings.music = e.target.checked; if (window.state.settings.music) playMusic(); else stopMusic(); maybeSave(); }; }
+  const st = $('sfxToggle'); if (st) { st.checked = !!window.state.settings.sfx; st.onchange = (e) => { window.state.settings.sfx = e.target.checked; maybeSave(); }; }
+  const auto = $('autoSave'); if (auto) { auto.checked = !!window.state.settings.autoSave; auto.onchange = (e) => { window.state.settings.autoSave = e.target.checked; if (window.state.settings.autoSave) saveState(); }; }
+  const theme = $('themeToggle'); if (theme) { theme.value = window.state.settings.theme || 'dark'; theme.onchange = (e) => { window.state.settings.theme = e.target.value; applyTheme(); maybeSave(); }; }
+  const playbackRate = $('playbackRate'); if (playbackRate) { playbackRate.value = window.state.settings.playbackRate || 1.0; playbackRate.oninput = (e) => { window.state.settings.playbackRate = parseFloat(e.target.value); if ($('playbackRateValue')) $('playbackRateValue').innerText = window.state.settings.playbackRate.toFixed(2); setMusicPlaybackRate(); maybeSave(); }; }
 }
 
 function renderConfigsUIIfPresent() {
@@ -302,6 +297,7 @@ function applyTheme() {
   document.body.classList.toggle('dark-theme', t !== 'light');
 }
 
+/* ---------- Auth (simples) ---------- */
 function signup() {
   const u = $('authUser') ? $('authUser').value.trim() : '';
   const p = $('authPass') ? $('authPass').value : '';
@@ -339,10 +335,8 @@ function logout() {
   alert('Desconectado');
 }
 
-function renderProfileIfPresent() {
-  if (!exists('profileName') && !exists('profilePoints')) return;
-  renderProfile();
-}
+/* ---------- Perfil / Leaderboard / Shop ---------- */
+function renderProfileIfPresent() { if (!exists('profileName') && !exists('profilePoints')) return; renderProfile(); }
 function renderProfile() {
   if (!exists('profileName')) return;
   $('profileName').innerText = window.state.currentUser || 'Visitante';
@@ -355,26 +349,17 @@ function renderProfile() {
   updateTopPointsUI();
 }
 
-function renderLeaderboardIfPresent() {
-  if (!exists('leaderboard')) return;
-  renderLeaderboard(true);
-}
+function renderLeaderboardIfPresent() { if (!exists('leaderboard')) return; renderLeaderboard(true); }
 function renderLeaderboard(showTable = true) {
   const arr = Object.entries(window.state.accounts).map(([u,o]) => ({ user: u, points: o.points || 0, level: o.level || 1 }));
   arr.sort((a,b) => b.points - a.points || a.user.localeCompare(b.user));
-  const lb = $('leaderboard');
-  if (!lb) return;
-  lb.innerHTML = '';
+  const lb = $('leaderboard'); if (!lb) return; lb.innerHTML = '';
   if (arr.length === 0) { lb.innerHTML = '<div class="small muted">Nenhum jogador cadastrado.</div>'; return; }
   if (showTable) {
     const table = document.createElement('table');
     table.innerHTML = `<thead><tr><th>Posição</th><th>Jogador</th><th>Pontos</th><th>Nível</th></tr></thead><tbody></tbody>`;
     const tbody = table.querySelector('tbody');
-    arr.forEach((it, idx) => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>#${idx+1}</td><td>${it.user}</td><td>${it.points}</td><td>${it.level}</td>`;
-      tbody.appendChild(tr);
-    });
+    arr.forEach((it, idx) => { const tr = document.createElement('tr'); tr.innerHTML = `<td>#${idx+1}</td><td>${it.user}</td><td>${it.points}</td><td>${it.level}</td>`; tbody.appendChild(tr); });
     lb.appendChild(table);
   } else {
     arr.slice(0,5).forEach((it, idx) => {
@@ -390,30 +375,19 @@ function renderLeaderboard(showTable = true) {
 function getGlobalPoints() { return Object.values(window.state.accounts).reduce((s,a) => s + (a.points||0), 0); }
 function getGlobalLevel() { return 1 + Math.floor(getGlobalPoints() / 100); }
 
-function renderShopIfPresent() {
-  if (!exists('shopContainer')) return;
-  renderShop();
-}
+function renderShopIfPresent() { if (!exists('shopContainer')) return; renderShop(); }
 function renderShop() {
-  const container = $('shopContainer');
-  if (!container) return;
-  container.innerHTML = '<h3>Loja de Itens</h3>';
+  const container = $('shopContainer'); if (!container) return; container.innerHTML = '<h3>Loja de Itens</h3>';
   shopItems.forEach(it => {
-    const div = document.createElement('div');
-    div.className = 'phase';
-    div.style.display = 'flex';
-    div.style.justifyContent = 'space-between';
-    div.style.alignItems = 'center';
+    const div = document.createElement('div'); div.className = 'phase'; div.style.display = 'flex'; div.style.justifyContent = 'space-between'; div.style.alignItems = 'center';
     div.innerHTML = `<div><strong>${it.emoji} ${it.name}</strong> <div class='small muted'>${it.desc}</div></div><div style="text-align:right">${it.cost} pts</div>`;
-    const buyBtn = document.createElement('button');
-    buyBtn.className = 'btn small-btn';
-    buyBtn.style.marginLeft = '12px';
-    buyBtn.innerText = 'Comprar';
+    const buyBtn = document.createElement('button'); buyBtn.className = 'btn small-btn'; buyBtn.style.marginLeft = '12px'; buyBtn.innerText = 'Comprar';
     buyBtn.onclick = (e) => { e.stopPropagation(); buyItem(it.id); };
     div.appendChild(buyBtn);
     container.appendChild(div);
   });
 }
+
 function buyItem(itemId) {
   if (!window.state.currentUser) { alert('Entre na conta primeiro.'); return; }
   const acc = window.state.accounts[window.state.currentUser];
@@ -428,20 +402,17 @@ function buyItem(itemId) {
   alert(`Comprou ${item.emoji} ${item.name}! Agora você tem ${acc.items[itemId]}`);
 }
 
-function renderPhaseListIfPresent() {
-  if (!exists('phaseList')) return;
-  renderPhaseList();
-}
+/* ---------- Fases / lista ---------- */
+function renderPhaseListIfPresent() { if (!exists('phaseList')) return; renderPhaseList(); }
 function renderPhaseList() {
-  const container = $('phaseList');
-  if (!container) return;
-  container.innerHTML = '';
+  const container = $('phaseList'); if (!container) return; container.innerHTML = '';
   if (!window.state.phasesMeta || window.state.phasesMeta.length === 0) ensurePhasesMeta();
   window.state.phasesMeta.forEach(pmeta => {
     const div = document.createElement('div');
     div.className = 'phase' + (pmeta.unlocked ? '' : ' locked');
     const qCount = (phasesData.find(p => p.id === pmeta.id)?.questions?.length) || 0;
-    div.innerHTML = `<div style="font-weight:600">${pmeta.id} — Fase</div><div class="small muted">Perguntas: ${qCount} · Progresso: ${pmeta.progress}/${Math.min(5,qCount)}</div>`;
+    const name = pmeta.name || (`Fase ${pmeta.id}`);
+    div.innerHTML = `<div style="font-weight:600">${name}</div><div class="small muted">Perguntas: ${qCount} · Progresso: ${pmeta.progress || 0}/${qCount}</div>`;
     div.onclick = () => { if (!pmeta.unlocked) return alert('Fase trancada. Complete as fases anteriores.'); startQuiz(pmeta.id); };
     container.appendChild(div);
   });
@@ -460,7 +431,9 @@ function playCurrentPhase() {
 }
 
 function startQuiz(phaseId) {
-  const questions = getPhaseQuestions(phaseId).slice(0,5).map(q => ({ ...q, a: q.a.slice() }));
+  const raw = getPhaseQuestions(phaseId) || [];
+  if (!raw || raw.length === 0) { alert('Fase sem perguntas configuradas.'); return; }
+  const questions = raw.slice(0,5).map(q => ({ q: q.q, a: (q.a||[]).slice(), correct: Number.isFinite(q.correct) ? q.correct : 0 }));
   session = { phaseId, questions, index: 0, score: 0, usedItems: { elim:0,dica:0,pular:0,revelar:0,dobro:0 }, doubleNext: false };
   if (window.location.pathname.endsWith('quiz.html')) {
     renderQuestion();
@@ -471,6 +444,7 @@ function startQuiz(phaseId) {
   }
 }
 
+/* ---------- Quiz rendering/flow ---------- */
 function renderQuizIfPresent() {
   if (!exists('questionCard') || !exists('answersList')) return;
   if (!session) {
@@ -478,12 +452,8 @@ function renderQuizIfPresent() {
     if (p) {
       try {
         const obj = JSON.parse(p);
-        if (obj && obj.phaseId) {
-          sessionStorage.removeItem('pendingSession');
-          startQuiz(obj.phaseId);
-          return;
-        }
-      } catch (e) {}
+        if (obj && obj.phaseId) { sessionStorage.removeItem('pendingSession'); startQuiz(obj.phaseId); return; }
+      } catch (e) { console.warn(e); }
     }
   }
   if (session) renderQuestion();
@@ -499,12 +469,12 @@ function renderQuestion() {
   if ($('quizTotal')) $('quizTotal').innerText = session.questions.length;
   if ($('scoreDisplay')) $('scoreDisplay').innerText = session.score;
   if ($('sessionScore')) $('sessionScore').innerText = `${session.score} pts`;
-  if ($('questionText')) $('questionText').innerText = q.q;
+  if ($('questionText')) $('questionText').innerText = q.q || '';
 
   const ansList = $('answersList');
   ansList.innerHTML = '';
 
-  q.a.forEach((txt, idx) => {
+  (q.a || []).forEach((txt, idx) => {
     const b = document.createElement('div');
     b.className = 'ans';
     b.tabIndex = 0;
@@ -538,46 +508,48 @@ function renderQuestion() {
     addItemBtn('Pular', (acc.items['pular'] || 0) > 0, useSkip);
     addItemBtn('Dobrar', (acc.items['dobro'] || 0) > 0, useDoubleNext);
 
-    const vidasLbl = document.createElement('div');
-    vidasLbl.className = 'small muted';
-    vidasLbl.style.marginLeft = '8px';
-    vidasLbl.innerText = `Vidas: ${acc.items['vida'] || 0}`;
+    const vidasLbl = document.createElement('div'); vidasLbl.className = 'small muted'; vidasLbl.style.marginLeft = '8px'; vidasLbl.innerText = `Vidas: ${acc.items['vida'] || 0}`;
     ctrl.appendChild(vidasLbl);
 
+    // Auto-dica: aplica automaticamente no início da fase (usar apenas 1 vez por fase)
     if (window.state.settings.showHints && (acc.items['autodica'] || 0) > 0 && (acc._autodicaPhaseUsed !== session.phaseId)) {
       acc.items['autodica'] = Math.max(0, acc.items['autodica'] - 1);
       acc._autodicaPhaseUsed = session.phaseId;
       maybeSave();
-      const correctText = q.a[q.correct];
-      setTimeout(() => alert(`Auto-dica: começa com "${correctText[0]}" e tem ${correctText.length} caracteres.`), 120);
+      const correctText = q.a[q.correct] || '';
+      setTimeout(() => alert(`Auto-dica: começa com "${correctText[0] || ''}" e tem ${correctText.length || 0} caracteres.`), 120);
     }
   }
   card.appendChild(ctrl);
 }
 
 function cleanupQuestionCardControls() {
-  const card = $('questionCard');
-  if (!card) return;
-  const ctls = card.querySelectorAll('[data-ctrl="1"]');
-  ctls.forEach(c => c.remove());
+  const card = $('questionCard'); if (!card) return;
+  const ctls = card.querySelectorAll('[data-ctrl="1"]'); ctls.forEach(c => c.remove());
 }
 
 function handleAnswer(selectedIdx, elem) {
   if (!session) return;
   const q = session.questions[session.index];
-  const ansElems = Array.from(document.querySelectorAll('.answers .ans'));
+  if (!q) return;
+  // consistent selector for current answers list
+  const ansElems = Array.from(document.querySelectorAll('#answersList .ans'));
+  // prevent double answer
+  if (!elem || elem.classList.contains('answered')) return;
   ansElems.forEach(a => { a.onclick = null; a.onkeydown = null; a.style.pointerEvents = 'none'; });
 
-  const correctIdx = q.correct;
+  const correctIdx = Number.isFinite(q.correct) ? q.correct : 0;
   if (selectedIdx === correctIdx) {
-    ansElems[selectedIdx].classList.add('correct');
+    if (ansElems[selectedIdx]) ansElems[selectedIdx].classList.add('correct');
     const gain = session.doubleNext ? 20 : 10;
     session.score += gain;
     session.doubleNext = false;
     playSfx('correct');
   } else {
-    ansElems[selectedIdx].classList.add('wrong');
-    ansElems[selectedIdx].classList.add('selected');
+    if (ansElems[selectedIdx]) {
+      ansElems[selectedIdx].classList.add('wrong');
+      ansElems[selectedIdx].classList.add('selected');
+    }
     if (ansElems[correctIdx]) ansElems[correctIdx].classList.add('correct');
 
     const acc = window.state.currentUser ? window.state.accounts[window.state.currentUser] : null;
@@ -595,6 +567,9 @@ function handleAnswer(selectedIdx, elem) {
   if ($('sessionScore')) $('sessionScore').innerText = `${session.score} pts`;
   if ($('scoreDisplay')) $('scoreDisplay').innerText = session.score;
 
+  // mark element as answered to avoid double-handling
+  if (elem) elem.classList.add('answered');
+
   setTimeout(() => {
     cleanupQuestionCardControls();
     session.index++;
@@ -603,12 +578,14 @@ function handleAnswer(selectedIdx, elem) {
   }, 900);
 }
 
+/* ---------- Itens especiais (eliminar, dica, revelar, pular, dobro) ---------- */
 function useEliminateTwo() {
   if (!session) return alert('Sem sessão ativa');
   const acc = window.state.accounts[window.state.currentUser];
   if (!acc || (acc.items['elim'] || 0) <= 0) { alert('Sem itens "Eliminar 2".'); return; }
   const q = session.questions[session.index];
-  const ansElems = Array.from(document.querySelectorAll('.answers .ans'));
+  const ansElems = Array.from(document.querySelectorAll('#answersList .ans'));
+  if (ansElems.length <= 2) return alert('Não é possível eliminar alternativas nesta pergunta.');
   let removed = 0;
   const idxs = ansElems.map((_, i) => i).sort(() => Math.random() - 0.5);
   for (const i of idxs) {
@@ -624,8 +601,7 @@ function useEliminateTwo() {
   }
   acc.items['elim'] -= 1;
   session.usedItems.elim = (session.usedItems.elim || 0) + 1;
-  maybeSave();
-  renderProfileIfPresent();
+  maybeSave(); renderProfileIfPresent();
 }
 
 function useHint() {
@@ -633,12 +609,11 @@ function useHint() {
   const acc = window.state.accounts[window.state.currentUser];
   if (!acc || (acc.items['dica'] || 0) <= 0) { alert('Sem itens "Dica".'); return; }
   const q = session.questions[session.index];
-  const correctText = q.a[q.correct];
-  alert(`Dica: começa com "${correctText[0]}" e tem ${correctText.length} caracteres.`);
+  const correctText = (q.a && q.a[q.correct]) || '';
+  alert(`Dica: começa com "${correctText[0] || ''}" e tem ${correctText.length || 0} caracteres.`);
   acc.items['dica'] -= 1;
   session.usedItems.dica = (session.usedItems.dica || 0) + 1;
-  maybeSave();
-  renderProfileIfPresent();
+  maybeSave(); renderProfileIfPresent();
 }
 
 function useReveal() {
@@ -646,20 +621,13 @@ function useReveal() {
   const acc = window.state.accounts[window.state.currentUser];
   if (!acc || (acc.items['revelar'] || 0) <= 0) { alert('Sem itens "Revelar".'); return; }
   const q = session.questions[session.index];
-  const ansElems = Array.from(document.querySelectorAll('.answers .ans'));
+  const ansElems = Array.from(document.querySelectorAll('#answersList .ans'));
   ansElems.forEach((el, i) => {
-    if (i === q.correct) {
-      el.classList.add('correct');
-    } else {
-      el.classList.add('removed');
-      el.style.opacity = '0.36';
-      el.onclick = null; el.onkeydown = null;
-    }
+    if (i === q.correct) { el.classList.add('correct'); } else { el.classList.add('removed'); el.style.opacity = '0.36'; el.onclick = null; el.onkeydown = null; }
   });
   acc.items['revelar'] -= 1;
   session.usedItems.revelar = (session.usedItems.revelar || 0) + 1;
-  maybeSave();
-  renderProfileIfPresent();
+  maybeSave(); renderProfileIfPresent();
 }
 
 function useSkip() {
@@ -668,11 +636,9 @@ function useSkip() {
   if (!acc || (acc.items['pular'] || 0) <= 0) { alert('Sem itens "Pular".'); return; }
   acc.items['pular'] -= 1;
   session.usedItems.pular = (session.usedItems.pular || 0) + 1;
-  maybeSave();
-  renderProfileIfPresent();
+  maybeSave(); renderProfileIfPresent();
   session.index++;
-  if (session.index >= session.questions.length) finishPhase();
-  else renderQuestion();
+  if (session.index >= session.questions.length) finishPhase(); else renderQuestion();
 }
 
 function useDoubleNext() {
@@ -682,11 +648,11 @@ function useDoubleNext() {
   acc.items['dobro'] -= 1;
   session.usedItems.dobro = (session.usedItems.dobro || 0) + 1;
   session.doubleNext = true;
-  maybeSave();
-  renderProfileIfPresent();
+  maybeSave(); renderProfileIfPresent();
   alert('Próxima resposta correta valerá o dobro de pontos.');
 }
 
+/* ---------- Finalização de fase ---------- */
 function finishPhase() {
   const acc = window.state.currentUser ? window.state.accounts[window.state.currentUser] : null;
   if (acc && session) {
@@ -702,10 +668,7 @@ function finishPhase() {
   }
   alert(`Fase ${session ? session.phaseId : ''} concluída! Você ganhou ${session ? session.score : 0} pontos.`);
   session = null;
-  maybeSave();
-  renderPhaseListIfPresent();
-  renderProfileIfPresent();
-  updateTopPointsUI();
+  maybeSave(); renderPhaseListIfPresent(); renderProfileIfPresent(); updateTopPointsUI();
   if (!window.location.pathname.endsWith('profile.html')) window.location = 'profile.html';
 }
 
@@ -714,111 +677,55 @@ function endPhaseEarly() {
   const acc = window.state.currentUser ? window.state.accounts[window.state.currentUser] : null;
   if (acc) { acc.points = (acc.points || 0) + session.score; acc.level = Math.max(1, Math.floor((acc.points || 0) / 50) + 1); }
   session = null;
-  maybeSave();
-  renderPhaseListIfPresent();
-  renderProfileIfPresent();
-  updateTopPointsUI();
+  maybeSave(); renderPhaseListIfPresent(); renderProfileIfPresent(); updateTopPointsUI();
   window.location = 'index.html';
 }
 
-function updateUIAllPages() {
-  updateAuthButtons();
-  updateTopPointsUI();
-  renderPhaseListIfPresent();
-  renderShopIfPresent();
-  renderProfileIfPresent();
-  renderLeaderboardIfPresent();
-}
+/* ---------- UI updates / Owned items ---------- */
+function updateUIAllPages() { updateAuthButtons(); updateTopPointsUI(); renderPhaseListIfPresent(); renderShopIfPresent(); renderProfileIfPresent(); renderLeaderboardIfPresent(); }
 
 function renderOwnedItemsQuick() {
-  const container = $('ownedItems');
-  if (!container) return;
-  container.innerHTML = '';
-  const user = window.state.currentUser;
-  if (!user) { container.innerHTML = '<div class="small muted">Faça login para ver seus itens.</div>'; return; }
+  const container = $('ownedItems'); if (!container) return; container.innerHTML = '';
+  const user = window.state.currentUser; if (!user) { container.innerHTML = '<div class="small muted">Faça login para ver seus itens.</div>'; return; }
   const acc = window.state.accounts[user] || {};
   const items = acc.items || {};
-  if (!items || Object.keys(items).length === 0) {
-    container.innerHTML = '<div class="small muted">Nenhum item.</div>';
-    return;
-  }
-  const map = {};
-  shopItems.forEach(it => map[it.id] = it);
+  if (!items || Object.keys(items).length === 0) { container.innerHTML = '<div class="small muted">Nenhum item.</div>'; return; }
+  const map = {}; shopItems.forEach(it => map[it.id] = it);
   Object.entries(items).forEach(([id, qt]) => {
     const info = map[id] || { emoji: '❓', name: id, desc: '' };
-    const div = document.createElement('div');
-    div.className = 'item-card';
-    div.dataset.id = id;
-    div.dataset.desc = `${info.emoji} ${info.name} — ${info.desc} (Quantidade: ${qt})`;
+    const div = document.createElement('div'); div.className = 'item-card'; div.dataset.id = id; div.dataset.desc = `${info.emoji} ${info.name} — ${info.desc} (Quantidade: ${qt})`;
     div.innerHTML = `<span class="item-emoji">${info.emoji}</span><strong>${info.name}</strong><div class="small muted" style="margin-top:6px">x${qt}</div>`;
-    div.onclick = () => {
-      const out = $('itemDesc');
-      if (out) out.innerText = div.dataset.desc || 'Sem descrição';
-    };
+    div.onclick = () => { const out = $('itemDesc'); if (out) out.innerText = div.dataset.desc || 'Sem descrição'; };
     container.appendChild(div);
   });
 }
 window.renderOwnedItemsQuick = renderOwnedItemsQuick;
 
 function renderQuizIfPresentOnLoad() { if (exists('questionCard') && !session) renderQuizIfPresent(); }
-function renderAuthIfPresent() {
-  if (!exists('btnSignup') && !exists('btnLogin')) return;
-  const bS = $('btnSignup'); if (bS) bS.onclick = signup;
-  const bL = $('btnLogin'); if (bL) bL.onclick = login;
-}
+function renderAuthIfPresent() { if (!exists('btnSignup') && !exists('btnLogin')) return; const bS = $('btnSignup'); if (bS) bS.onclick = signup; const bL = $('btnLogin'); if (bL) bL.onclick = login; }
 
-// music time persistence
-function saveMusicTime() {
-  const m = document.getElementById("bgMusic");
-  if (m) {
-    localStorage.setItem("musicTime", m.currentTime);
-  }
-}
-function restoreMusicTime() {
-  const m = document.getElementById("bgMusic");
-  if (m) {
-    const t = parseFloat(localStorage.getItem("musicTime")) || 0;
-    try { m.currentTime = t; } catch(e) {}
-    // don't force-play here; rely on user gesture
-  }
-}
+/* ---------- Music time persistence ---------- */
+function saveMusicTime() { const m = document.getElementById("bgMusic"); if (m) { localStorage.setItem("musicTime", m.currentTime); } }
+function restoreMusicTime() { const m = document.getElementById("bgMusic"); if (m) { const t = parseFloat(localStorage.getItem("musicTime")) || 0; try { m.currentTime = t; } catch(e) {} } }
 
-// Attach top-level DOMContentLoaded once
+/* ---------- DOMContentLoaded ---------- */
 document.addEventListener('DOMContentLoaded', async () => {
   await appInit();
-  // restore music time after init
   restoreMusicTime();
-
-  // If there are ownedItems on page, render them after a short delay
-  if (exists('ownedItems')) {
-    setTimeout(() => { renderProfile(); renderOwnedItemsQuick(); }, 200);
-  }
-
-  // If on quiz.html and a pending session exists, start it
+  if (exists('ownedItems')) { setTimeout(() => { renderProfile(); renderOwnedItemsQuick(); }, 200); }
   if (window.location.pathname.endsWith('quiz.html')) {
     if (!session) {
       const p = sessionStorage.getItem('pendingSession');
       if (p) {
-        try {
-          const obj = JSON.parse(p);
-          if (obj && obj.phaseId) {
-            sessionStorage.removeItem('pendingSession');
-            startQuiz(obj.phaseId);
-          }
-        } catch (e) {}
+        try { const obj = JSON.parse(p); if (obj && obj.phaseId) { sessionStorage.removeItem('pendingSession'); startQuiz(obj.phaseId); } } catch (e) {}
       }
-    } else {
-      renderQuestion();
-    }
+    } else { renderQuestion(); }
   }
-
   updateUIAllPages();
-
-  // Save music time on unload
   window.addEventListener("beforeunload", saveMusicTime);
 });
 
-// expose useful functions for debugging
+/* ---------- Exports/utilities para debug ---------- */
 window.startQuiz = startQuiz;
 window.playCurrentPhase = playCurrentPhase;
 window.buyItem = buyItem;
@@ -827,3 +734,5 @@ window.loadStateManual = loadState;
 window.getState = () => window.state;
 window.saveMusicTime = saveMusicTime;
 window.restoreMusicTime = restoreMusicTime;
+
+/* ---------- FIM ---------- */
